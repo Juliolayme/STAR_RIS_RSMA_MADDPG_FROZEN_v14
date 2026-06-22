@@ -1,0 +1,16 @@
+\begin{table}[t]
+\centering
+\caption{Raw-capability comparison at $\lambda=0$ (no QoS penalty): all algorithms evaluated under the same reward to isolate pure policy capability from reward-shaping artifacts.}
+\label{tab:algorithm_comparison_lambda0}
+\begin{tabular}{lrrrrrr}
+\toprule
+Algorithm & Return\_l0 & Return\_l0\_CI & SumRate\_l0 & SumRate\_l0\_CI & QoS\_l0 & QoS\_l0\_CI \\
+\midrule
+MADDPG & 3.070 & 0.168 & 2.779 & 0.104 & 0.527 & 0.143 \\
+DDPG & 2.846 & 0.127 & 1.761 & 0.024 & 0.557 & 0.147 \\
+TD3 & 2.880 & 0.240 & 2.702 & 0.269 & 0.373 & 0.100 \\
+PPO & 3.323 & 0.028 & 2.196 & 0.079 & 0.999 & 0.004 \\
+\bottomrule
+\end{tabular}
+
+\end{table}

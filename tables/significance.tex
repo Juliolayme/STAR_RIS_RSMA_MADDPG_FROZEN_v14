@@ -1,0 +1,15 @@
+\begin{table}[t]
+\centering
+\caption{Welch's t-test on eval-return distributions across training seeds: MADDPG vs each baseline (P2 reviewer fix).}
+\label{tab:significance}
+\begin{tabular}{lrrrr}
+\toprule
+Comparison & delta\_mean\_return & p\_value & significant\_5pct & N\_seeds\_per\_algo \\
+\midrule
+MADDPG vs DDPG & -0.392 & 0.319 & False & 5 \\
+MADDPG vs TD3 & 0.490 & 0.185 & False & 5 \\
+MADDPG vs PPO & -1.537 & 0.004 & True & 5 \\
+\bottomrule
+\end{tabular}
+
+\end{table}

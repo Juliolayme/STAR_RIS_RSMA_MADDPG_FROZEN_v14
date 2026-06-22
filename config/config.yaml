@@ -1,0 +1,189 @@
+# =====================================================================
+# STAR-RIS Assisted RSMA Networks - DRL Resource Allocation
+# Master configuration file
+# =====================================================================
+
+seed: 2026
+device: "auto"   # "cpu" | "cuda" | "auto"
+
+# ------------------ System / Environment ------------------
+env:
+  # Geometry & basic parameters
+  num_bs_antennas: 1            # M = 1 (SISO scenario)
+  num_users: 4                  # K total users
+  num_users_reflection: 3       # users in R region (must be <= K)
+  num_ris_elements: 32          # N STAR-RIS elements
+  star_mode: "ES"               # Energy Splitting
+
+  # Power / noise (in dB / dBm)
+  p_max_dbm: 30.0               # BS maximum transmit power
+  noise_power_dbm: -90.0
+  qos_rate_min: 0.3             # bits/s/Hz minimum per-user rate (incl. common share)
+
+  # Path-loss (Friis-like log-distance model)
+  path_loss_exp_direct: 3.5
+  path_loss_exp_bs_ris: 2.2
+  path_loss_exp_ris_user: 2.5
+  ref_path_loss_db: 30.0        # PL at d=1 m
+  ref_distance: 1.0
+
+  # Blockage / NLoS for direct link (canonical STAR-RIS deployment scenario:
+  # T-region users are behind an obstacle and must be served via the transmissive
+  # side of the STAR-RIS).
+  direct_block_T: true
+  direct_block_loss_db: 25.0    # extra dB attenuation on top of nominal PL
+  direct_block_R_loss_db: 0.0
+
+  # Geometry (meters). R users between BS and RIS; T users behind the RIS.
+  bs_position: [0.0, 0.0, 5.0]
+  ris_position: [50.0, 0.0, 10.0]
+  user_area_reflection: [[35.0, 50.0], [-10.0, 10.0], [1.5, 1.5]]
+  user_area_transmission: [[55.0, 75.0], [-10.0, 10.0], [1.5, 1.5]]
+
+  # Episode
+  max_steps: 50                 # steps per episode (channel block length)
+  channel_block_steps: 50       # channel coherent for the WHOLE episode — each episode is one
+                                # block fading realization. Lets the agent fully exploit a per-
+                                # realization optimal RIS phase configuration before it changes.
+
+  # Reward shaping
+  reward_alpha: 1.5             # sum-rate weight (boost throughput signal)
+  reward_beta: 1.0              # legacy linear QoS weight (unused when quadratic)
+  reward_gamma: 0.05            # power penalty weight
+  reward_qos_bonus: 0.5         # per-user satisfaction binary bonus (dense positive signal)
+                                # R1 reviewer fix: reduced from 1.0 because PPO converged to
+                                # trivial uniform-power policy (P_c/Pmax≈0.20, std<0.01) — it
+                                # exploited the bonus by giving up sum-rate to satisfy QoS via
+                                # equal split. Bonus=0.5 keeps incentive ~1.5:1 vs sum-rate term,
+                                # not enough to make uniform power preferable to learned RSMA.
+  reward_scale: 0.1             # global reward scaling
+  reward_clip: 50.0
+
+  # Quadratic QoS with adaptive Lagrangian multiplier.
+  # Penalty term: lambda * sum_k max(0, R_min - R_k)^2
+  qos_penalty_type: "quadratic"   # "quadratic" | "linear" | "barrier"
+  qos_lambda_init: 1.0
+  qos_lambda_min: 0.3
+  qos_lambda_max: 10.0            # v17: lowered from 15 so the frozen λ is more balanced
+                                  # (λ=15 crushed sum-rate; learned-RIS fell below analytical).
+  qos_target_satisfaction: 0.45   # v17: reachable target for blocked-T users so λ settles
+                                  # instead of always climbing to the ceiling.
+  qos_lambda_increase: 1.02       # v17: gentler ramp so λ converges smoothly before freeze.
+  qos_lambda_decrease: 0.97       # multiply λ when satisfaction above target+margin
+  # v17: two-phase Lagrangian schedule. λ adapts (primal-dual) for the first
+  # qos_lambda_freeze_fraction of training, then is FROZEN so the reward becomes
+  # stationary in the tail and the convergence curve (ma_return) can actually flatten.
+  qos_lambda_freeze_fraction: 0.55
+
+  # Ablation toggle: when true the env overrides BS power action to uniform.
+  equal_power_mode: false
+
+  # Physics-informed phase action mapping (hybrid analytical-RL).
+  # "absolute":  phi_n = pi*(action+1)                          ∈ [0, 2π]
+  # "residual":  phi_n = analytical_prior + scale*pi*action     ∈ analytical ± scale·π
+  # Residual mode is the canonical "hybrid analytical-RL" approach for RIS optimization
+  # (Pan et al. 2021, Wu et al. 2021, Lyu et al. 2022). At scale=0.5 the agent has
+  # genuine ±π/2 freedom around the closed-form prior — large enough for genuine learning,
+  # small enough that absolute-mode exploration in 96-dim phase space is not required.
+  phase_action_mode: "residual"
+  phase_residual_scale: 0.35      # v17: tighter band around the analytical prior so the
+                                  # learned policy stays near the good closed-form alignment
+                                  # (at 0.50 it wandered off and fell below the analytical baseline).
+
+  # Observation
+  obs_include_channel_state: true   # include raw Re/Im of h_d, G, g_k in observation
+                                    # essential for the agent to learn phase alignment
+  local_obs_for_maddpg: true        # MADDPG actors get FACTORIZED views — true CTDE
+
+  # Numerics
+  epsilon: 1.0e-12
+
+# ------------------ Networks ------------------
+networks:
+  hidden_sizes: [256, 256]
+  activation: "relu"
+  layer_norm: true
+  ortho_init: true
+
+# ------------------ MADDPG ------------------
+maddpg:
+  num_agents: 3                 # BS power agent, RIS reflection agent, RIS transmission agent
+  actor_lr: 1.0e-4              # Reverted v12.2's 2e-4 tweak — caused MADDPG SR drop (2.97→2.87).
+  critic_lr: 5.0e-4
+  gamma: 0.95
+  tau: 0.005
+  batch_size: 256
+  buffer_size: 300000
+  warmup_steps: 5000
+  grad_clip: 1.0
+  noise_sigma_start: 0.4
+  noise_sigma_end: 0.05         # Reverted v12.2's 0.02 tweak — over-aggressive exploration decay.
+  noise_decay_steps: 45000      # v17: noise hits floor ~ep 900, before λ-freeze (~ep 1100) so
+                                # the stationary tail is also pure-exploitation.
+  policy_update_every: 1
+
+# ------------------ DDPG / TD3 / PPO ------------------
+ddpg:
+  actor_lr: 1.0e-4
+  critic_lr: 5.0e-4
+  gamma: 0.95
+  tau: 0.005
+  batch_size: 256
+  buffer_size: 300000
+  warmup_steps: 5000
+  grad_clip: 1.0
+  noise_sigma_start: 0.4
+  noise_sigma_end: 0.05
+  noise_decay_steps: 45000      # v17: match MADDPG (noise floor before λ-freeze)
+
+td3:
+  actor_lr: 1.0e-4
+  critic_lr: 5.0e-4
+  gamma: 0.95
+  tau: 0.005
+  batch_size: 256
+  buffer_size: 300000
+  warmup_steps: 5000
+  grad_clip: 1.0
+  noise_sigma_start: 0.4
+  noise_sigma_end: 0.05
+  noise_decay_steps: 45000      # v17: match MADDPG (noise floor before λ-freeze)
+  policy_noise: 0.2
+  noise_clip: 0.5
+  policy_delay: 2
+
+ppo:
+  lr: 3.0e-4
+  gamma: 0.95
+  gae_lambda: 0.95
+  clip_eps: 0.2
+  vf_coef: 0.5
+  ent_coef: 0.005
+  epochs: 10
+  minibatch_size: 64
+  rollout_length: 512
+  grad_clip: 0.5
+  target_kl: 0.03
+
+# ------------------ Training ------------------
+training:
+  total_episodes: 2000          # v17: long enough to show a clear post-freeze plateau
+                                # (λ frozen at 0.55 -> stationary reward in the final ~900 ep).
+  eval_every: 50
+  eval_episodes: 10
+  checkpoint_every: 200
+  early_stop_patience: 0        # 0 = disabled
+  log_dir: "logs"
+  ckpt_dir: "checkpoints"
+  reward_smoothing_window: 20   # moving average window for return logging
+  training_seeds: [1000, 2000, 3000, 4000, 5000]   # v17: 5 seeds (enough CI at chosen budget)
+
+# ------------------ Evaluation / Ablation ------------------
+evaluation:
+  num_episodes: 30
+  seeds: [11, 22, 33, 44, 55]
+  power_sweep_dbm: [10, 15, 20, 25, 30, 35]
+  n_sweep: [8, 16, 24, 32]
+  k_sweep: [2, 4, 6, 8]
+  ablation_modes: ["learned", "analytical", "fixed", "random", "none",
+                   "equal_power_learned", "equal_power_fixed"]

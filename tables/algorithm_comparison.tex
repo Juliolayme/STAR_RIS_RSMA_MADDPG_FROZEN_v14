@@ -1,0 +1,16 @@
+\begin{table}[t]
+\centering
+\caption{Deterministic-policy evaluation across algorithms (5 training seeds × 5 eval seeds, Student-t 95\% CI). The 'trained\_lambda\_mean' column shows the QoS multiplier each algorithm converged to during training (R5 reviewer fix).}
+\label{tab:algorithm_comparison}
+\begin{tabular}{lrrrrrrrrrrrrr}
+\toprule
+Algorithm & Return & Return\_CI & SumRate & SumRate\_CI & QoS\_prob & QoS\_CI & RateCommon & |h\_eff\_T| & PhaseEntropy\_T & P\_c/Pmax & Latency\_ms & trained\_lambda\_mean & N\_train\_seeds \\
+\midrule
+MADDPG & 1.786 & 0.713 & 2.776 & 0.097 & 0.525 & 0.142 & 1.238 & 0.000 & 2.506 & 0.816 & 0.534 & 14.297 & 5 \\
+DDPG & 2.178 & 0.735 & 1.761 & 0.024 & 0.557 & 0.147 & 0.224 & 0.000 & 2.494 & 0.187 & 0.202 & 14.205 & 5 \\
+TD3 & 1.296 & 0.608 & 2.710 & 0.263 & 0.373 & 0.101 & 1.010 & 0.000 & 2.504 & 0.625 & 0.201 & 15.000 & 5 \\
+PPO & 3.323 & 0.028 & 2.196 & 0.079 & 0.999 & 0.004 & 0.564 & 0.000 & 2.500 & 0.331 & 0.436 & 15.000 & 5 \\
+\bottomrule
+\end{tabular}
+
+\end{table}

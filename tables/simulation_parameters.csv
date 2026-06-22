@@ -1,0 +1,19 @@
+Parameter,Value
+K,4
+K_r,3
+N,32
+M,1
+P_max (dBm),30.0
+Noise (dBm),-90.0
+QoS min (b/s/Hz),0.3
+T-blockage (dB),25.0
+PL exp direct,3.5
+PL exp BS-RIS,2.2
+PL exp RIS-User,2.5
+Reward α (sum-rate),1.5
+Reward γ (power),0.05
+QoS penalty type,quadratic
+λ init,1.0
+λ target satisfaction,0.5
+Episodes per algo,1000
+Warmup steps,5000
